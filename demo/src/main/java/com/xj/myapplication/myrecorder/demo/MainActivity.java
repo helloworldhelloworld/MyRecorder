@@ -1,5 +1,9 @@
 package com.xj.myapplication.myrecorder.demo;
-import java.io.IOException;
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -23,7 +27,8 @@ public class MainActivity extends Activity {
     private static final String LOG_TAG = "AudioRecordTest";
     //语音文件保存路径
     private String FileName = null;
-
+    private String mBaseFileName = null;
+    private String SUFFIX = ".amr";
     //界面控件
     private Button startRecord;
     private Button startPlay;
@@ -33,6 +38,9 @@ public class MainActivity extends Activity {
     private boolean isRuning = true;
     private MyThread notifyThread;
     private long startTime;
+    private String mBaseDirs = "/MyRecord";
+    private File mFileDir = null;
+    private File mRecordFile =null;
 
     //语音操作对象
     private MediaPlayer mPlayer = null;
@@ -67,8 +75,31 @@ public class MainActivity extends Activity {
 
         //设置sdcard的路径
         FileName = Environment.getExternalStorageDirectory().getAbsolutePath();
-        FileName += "/audiorecordtest.3gp";
+        FileName += "/audiorecordtest.amr";
+        mBaseFileName += "MyRecord/audiobase_";
+        createDirs();
     }
+
+    public String getFileName()
+    {
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-mm-dd HH:mm:ss");
+        Date curDate = new Date(System.currentTimeMillis());
+        String time = formatter.format(curDate);
+        System.out.println("curtime:" + time);
+        return time;
+    }
+
+    public void createDirs()
+    {
+        String path = FileName+mBaseDirs;
+        mFileDir = new File(path);
+        if(!mFileDir.exists())
+        {
+            mFileDir.mkdirs();
+            Log.v("录音 ","创建录音文件"+mFileDir.exists());
+        }
+    }
+
     //开始录音
     class startRecordListener implements OnClickListener{
 
@@ -76,11 +107,13 @@ public class MainActivity extends Activity {
         public void onClick(View v) {
             // TODO Auto-generated method stub
             try {
+                String curTime = getFileName();
+                mRecordFile = new File(mFileDir,curTime+SUFFIX);
                 mRecorder = new MediaRecorder();
                 mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-                mRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+                mRecorder.setOutputFormat(MediaRecorder.OutputFormat.RAW_AMR);
                 mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-                mRecorder.setOutputFile(FileName);
+                mRecorder.setOutputFile(mRecordFile.getAbsolutePath());
                 isRuning = true;
             }catch (Exception e)
             {
@@ -232,9 +265,49 @@ public class MainActivity extends Activity {
         @Override
         public void onClick(View v) {
             // TODO Auto-generated method stub
+            componmentData();
             mPlayer.release();
             mPlayer = null;
         }
 
+    }
+
+    private void componmentData() {
+        File file = new File(mFileDir, "all.amr");
+        try {
+            FileOutputStream fos = new FileOutputStream(file);
+
+            int i = 0;
+            for (File recordFile : mFileDir.listFiles()) {
+                if (-1 != recordFile.getName().indexOf("amr")) {
+                    FileInputStream fis;
+                    fis = new FileInputStream(recordFile);
+                    byte[] recordByte = new byte[fis.available()];
+                    int length = recordByte.length;
+                    if (i == 0) {
+
+                        while (fis.read(recordByte) != -1) {
+                            fos.write(recordByte,0,length);
+                        }
+                    }
+                    else
+                    {
+                        while(fis.read(recordByte) != -1)
+                        {
+                            fos.write(recordByte,6,length);
+                        }
+
+                    }
+
+                }
+                fos.flush();
+                fis.close();
+                i++;
+            }
+            fos.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
