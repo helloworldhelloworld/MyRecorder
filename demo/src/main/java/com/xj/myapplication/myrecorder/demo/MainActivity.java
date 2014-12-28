@@ -1,9 +1,7 @@
 package com.xj.myapplication.myrecorder.demo;
 import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
@@ -27,8 +25,8 @@ public class MainActivity extends Activity {
     private static final String LOG_TAG = "AudioRecordTest";
     //语音文件保存路径
     private String FileName = null;
-    private String mBaseFileName = null;
     private String SUFFIX = ".amr";
+    private String PREFIX = "Record_";
     //界面控件
     private Button startRecord;
     private Button startPlay;
@@ -75,14 +73,13 @@ public class MainActivity extends Activity {
 
         //设置sdcard的路径
         FileName = Environment.getExternalStorageDirectory().getAbsolutePath();
-        FileName += "/audiorecordtest.amr";
-        mBaseFileName += "MyRecord/audiobase_";
+//        FileName += "/audiorecordtest.amr";
         createDirs();
     }
 
     public String getFileName()
     {
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-mm-dd HH:mm:ss");
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-mm-dd HH-mm-ss");
         Date curDate = new Date(System.currentTimeMillis());
         String time = formatter.format(curDate);
         System.out.println("curtime:" + time);
@@ -107,31 +104,41 @@ public class MainActivity extends Activity {
         public void onClick(View v) {
             // TODO Auto-generated method stub
             try {
-                String curTime = getFileName();
-                mRecordFile = new File(mFileDir,curTime+SUFFIX);
-                mRecorder = new MediaRecorder();
-                mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-                mRecorder.setOutputFormat(MediaRecorder.OutputFormat.RAW_AMR);
-                mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-                mRecorder.setOutputFile(mRecordFile.getAbsolutePath());
-                isRuning = true;
+                startMediaPlayer();
             }catch (Exception e)
             {
                 Log.e(LOG_TAG, e.getMessage());
             }
-            try {
-                mRecorder.prepare();
-                mRecorder.start();
+
                 notifyThread = new MyThread();
                 notifyThread.start();
-
-
-            } catch (IOException e) {
-                Log.e(LOG_TAG, "prepare() failed");
-            }
-
         }
 
+    }
+
+    private void startMediaPlayer() {
+        String curTime = getFileName();
+        mRecordFile = new File(mFileDir,PREFIX+curTime+SUFFIX);
+
+        if(!mRecordFile.exists())
+            try {
+                mRecordFile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        mRecorder = new MediaRecorder();
+        mRecorder.reset();
+        mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        mRecorder.setOutputFormat(MediaRecorder.OutputFormat.RAW_AMR);
+        mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+        mRecorder.setOutputFile(mRecordFile.getAbsolutePath());
+        isRuning = true;
+        try {
+            mRecorder.prepare();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        mRecorder.start();
     }
 
     private Handler handler =new Handler()
@@ -150,8 +157,7 @@ public class MainActivity extends Activity {
     };
 
     private void showDialog() {
-
-        mRecorder.stop();
+        stopMediaPlayer();
         if(mDialog != null && mDialog.isShowing())
             return;
         mDialog  = new AlertDialog.Builder(MainActivity.this)
@@ -162,7 +168,9 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 dialog.dismiss();
-                mRecorder.start();
+//                stopMediaPlayer();
+                startMediaPlayer();
+
                 synchronized (notifyThread) {
 
                     startTime = System.currentTimeMillis();
@@ -178,8 +186,8 @@ public class MainActivity extends Activity {
             public void onClick(DialogInterface dialog, int which) {
 
                 dialog.dismiss();
-                mRecorder.start();
-                stopMediaPlayer();
+
+//                stopMediaPlayer();
                 isRuning = false;
                 startTime = System.currentTimeMillis();
                 synchronized (notifyThread) {
@@ -236,10 +244,23 @@ public class MainActivity extends Activity {
     }
 
     private void stopMediaPlayer() {
-        mRecorder.stop();
-        mRecorder.reset();
-        mRecorder.release();
-        mRecorder = null;
+        try{
+            if(mRecorder != null) {
+                mRecorder.stop();
+                mRecorder.reset();
+                mRecorder.release();
+                mRecorder = null;
+                componmentData();
+            }
+        }catch (Exception e)
+        {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private void showFileName()
+    {
+
     }
 
     //播放录音
@@ -265,23 +286,49 @@ public class MainActivity extends Activity {
         @Override
         public void onClick(View v) {
             // TODO Auto-generated method stub
-            componmentData();
             mPlayer.release();
             mPlayer = null;
         }
 
     }
 
+    private void clearFiles(String fileName)
+    {
+        for (File recordFile : mFileDir.listFiles()) {
+            if(recordFile == null)
+                break;
+            if(fileName!=recordFile.getName()&&
+                    -1 != recordFile.getName().indexOf("amr") &&
+                    -1!=recordFile.getName().indexOf(PREFIX)){
+                if(recordFile.exists())
+                    recordFile.delete();
+            }
+        }
+    }
+
     private void componmentData() {
-        File file = new File(mFileDir, "all.amr");
+        String curTime = getFileName();
+        File fileall= new File(mFileDir, PREFIX+curTime+SUFFIX);
+        if(!fileall.exists())
+            try {
+                fileall.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         try {
-            FileOutputStream fos = new FileOutputStream(file);
+            FileOutputStream fos = new FileOutputStream(fileall);
 
             int i = 0;
             for (File recordFile : mFileDir.listFiles()) {
-                if (-1 != recordFile.getName().indexOf("amr")) {
-                    FileInputStream fis;
+                if(recordFile == null)
+                    break;
+                FileInputStream fis = null;
+                if (!fileall.getName().equals(recordFile.getName()) &&
+                        -1 != recordFile.getName().indexOf("amr") &&
+                        -1!=recordFile.getName().indexOf(PREFIX)) {
                     fis = new FileInputStream(recordFile);
+                    if(fis == null)
+                        break;
                     byte[] recordByte = new byte[fis.available()];
                     int length = recordByte.length;
                     if (i == 0) {
@@ -294,17 +341,18 @@ public class MainActivity extends Activity {
                     {
                         while(fis.read(recordByte) != -1)
                         {
-                            fos.write(recordByte,6,length);
+                            fos.write(recordByte,6,length-6);
                         }
 
                     }
-
+                    fos.flush();
+                    fis.close();
+                    i++;
                 }
-                fos.flush();
-                fis.close();
-                i++;
+
             }
             fos.close();
+            clearFiles(fileall.getName());
 
         } catch (Exception e) {
             e.printStackTrace();
