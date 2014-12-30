@@ -168,7 +168,6 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 dialog.dismiss();
-//                stopMediaPlayer();
                 startMediaPlayer();
 
                 synchronized (notifyThread) {
@@ -186,8 +185,6 @@ public class MainActivity extends Activity {
             public void onClick(DialogInterface dialog, int which) {
 
                 dialog.dismiss();
-
-//                stopMediaPlayer();
                 isRuning = false;
                 startTime = System.currentTimeMillis();
                 synchronized (notifyThread) {
@@ -271,7 +268,7 @@ public class MainActivity extends Activity {
             // TODO Auto-generated method stub
             mPlayer = new MediaPlayer();
             try{
-                mPlayer.setDataSource(FileName);
+                mPlayer.setDataSource(mRecordFile.getAbsolutePath());
                 mPlayer.prepare();
                 mPlayer.start();
             }catch(IOException e){
@@ -297,7 +294,7 @@ public class MainActivity extends Activity {
         for (File recordFile : mFileDir.listFiles()) {
             if(recordFile == null)
                 break;
-            if(fileName!=recordFile.getName()&&
+            if(!fileName.equals(recordFile.getName())&&
                     -1 != recordFile.getName().indexOf("amr") &&
                     -1!=recordFile.getName().indexOf(PREFIX)){
                 if(recordFile.exists())
