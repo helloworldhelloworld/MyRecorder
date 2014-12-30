@@ -1,6 +1,9 @@
 package com.xj.myapplication.myrecorder.demo;
 import java.io.*;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -39,6 +42,7 @@ public class MainActivity extends Activity {
     private String mBaseDirs = "/MyRecord";
     private File mFileDir = null;
     private File mRecordFile =null;
+    private File mFileall = null;
 
     //语音操作对象
     private MediaPlayer mPlayer = null;
@@ -73,8 +77,7 @@ public class MainActivity extends Activity {
 
         //设置sdcard的路径
         FileName = Environment.getExternalStorageDirectory().getAbsolutePath();
-//        FileName += "/audiorecordtest.amr";
-        createDirs();
+
     }
 
     public String getFileName()
@@ -88,6 +91,8 @@ public class MainActivity extends Activity {
 
     public void createDirs()
     {
+        long mills = System.currentTimeMillis();
+        mBaseDirs = mBaseDirs+"/"+String.valueOf(mills);
         String path = FileName+mBaseDirs;
         mFileDir = new File(path);
         if(!mFileDir.exists())
@@ -95,15 +100,20 @@ public class MainActivity extends Activity {
             mFileDir.mkdirs();
             Log.v("录音 ","创建录音文件"+mFileDir.exists());
         }
+        try {
+            Runtime.getRuntime().exec("chmod 777 " +  mFileDir );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    //开始录音
     class startRecordListener implements OnClickListener{
 
         @Override
         public void onClick(View v) {
             // TODO Auto-generated method stub
             try {
+                createDirs();
                 startMediaPlayer();
             }catch (Exception e)
             {
@@ -229,7 +239,6 @@ public class MainActivity extends Activity {
             }
         }
     }
-    //停止录音
     class stopRecordListener implements OnClickListener{
 
         @Override
@@ -255,20 +264,31 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showFileName()
-    {
 
-    }
-
-    //播放录音
     class startPlayListener implements OnClickListener{
 
         @Override
         public void onClick(View v) {
             // TODO Auto-generated method stub
             mPlayer = new MediaPlayer();
+            FileInputStream fis = null;
+            try {
+                fis = new FileInputStream(mFileall);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            if(fis == null)
+                return;
+            mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener(){
+
+                @Override
+                public void onCompletion(MediaPlayer mediaPlayer) {
+                    mediaPlayer.stop();
+                }
+            });
             try{
-                mPlayer.setDataSource(mRecordFile.getAbsolutePath());
+                mPlayer.reset();
+                mPlayer.setDataSource(fis.getFD());
                 mPlayer.prepare();
                 mPlayer.start();
             }catch(IOException e){
@@ -277,7 +297,6 @@ public class MainActivity extends Activity {
         }
 
     }
-    //停止播放录音
     class stopPlayListener implements OnClickListener{
 
         @Override
@@ -293,7 +312,7 @@ public class MainActivity extends Activity {
     {
         for (File recordFile : mFileDir.listFiles()) {
             if(recordFile == null)
-                break;
+                continue;
             if(!fileName.equals(recordFile.getName())&&
                     -1 != recordFile.getName().indexOf("amr") &&
                     -1!=recordFile.getName().indexOf(PREFIX)){
@@ -305,22 +324,29 @@ public class MainActivity extends Activity {
 
     private void componmentData() {
         String curTime = getFileName();
-        File fileall= new File(mFileDir, PREFIX+curTime+SUFFIX);
-        if(!fileall.exists())
+        mFileall = new File(mFileDir, PREFIX+curTime+SUFFIX);
+        if(!mFileall.exists())
             try {
-                fileall.createNewFile();
+                mFileall.createNewFile();
             } catch (IOException e) {
                 e.printStackTrace();
             }
         try {
-            FileOutputStream fos = new FileOutputStream(fileall);
+            FileOutputStream fos = new FileOutputStream(mFileall);
 
-            int i = 0;
+            ArrayList fileList = new ArrayList();
             for (File recordFile : mFileDir.listFiles()) {
+                fileList.add(recordFile);
+            }
+
+            Collections.reverse(fileList);
+            int index = 0;
+            for(int i= 0;i<fileList.size();i++){
+                File recordFile = (File) fileList.get(i);
                 if(recordFile == null)
-                    break;
+                    continue;
                 FileInputStream fis = null;
-                if (!fileall.getName().equals(recordFile.getName()) &&
+                if (!mFileall.getName().equals(recordFile.getName()) &&
                         -1 != recordFile.getName().indexOf("amr") &&
                         -1!=recordFile.getName().indexOf(PREFIX)) {
                     fis = new FileInputStream(recordFile);
@@ -328,7 +354,7 @@ public class MainActivity extends Activity {
                         break;
                     byte[] recordByte = new byte[fis.available()];
                     int length = recordByte.length;
-                    if (i == 0) {
+                    if (index == 0) {
 
                         while (fis.read(recordByte) != -1) {
                             fos.write(recordByte,0,length);
@@ -344,12 +370,12 @@ public class MainActivity extends Activity {
                     }
                     fos.flush();
                     fis.close();
-                    i++;
+                    index++;
                 }
 
             }
             fos.close();
-            clearFiles(fileall.getName());
+            clearFiles(mFileall.getName());
 
         } catch (Exception e) {
             e.printStackTrace();
